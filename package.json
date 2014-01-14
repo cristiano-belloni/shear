@@ -1,0 +1,9 @@
+{
+	"map": {
+    "tuna": "github:janesconference/tuna@master/tuna"
+  },
+	
+    "buildConfig": {
+        "uglify": true
+    }
+}
