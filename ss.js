@@ -52,11 +52,14 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           this.detune = 12;
         }
 
-        Scissor.prototype.noteOn = function(note, time) {
+        Scissor.prototype.noteOn = function(note, time, velocity) {
           var freq, voice;
+          if (velocity == 0) {
+            this.noteOff(note,time);
+            return;
+          }
           if (this.voices[note] != null) {
             this.noteOff(note,time);
-            //return;
           }
           if (time == null) {
             time = this.context.currentTime;
@@ -64,7 +67,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           freq = noteToFrequency(note);
           voice = new ScissorVoice(this.context, freq, this.numSaws, this.detune);
           voice.connect(this.delay.input);
-          voice.start(time);
+          voice.start(time, velocity);
           return this.voices[note] = voice;
         };
 
