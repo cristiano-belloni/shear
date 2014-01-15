@@ -55,7 +55,8 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         Scissor.prototype.noteOn = function(note, time) {
           var freq, voice;
           if (this.voices[note] != null) {
-            return;
+            this.noteOff(note,time);
+            //return;
           }
           if (time == null) {
             time = this.context.currentTime;
@@ -107,7 +108,10 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           }
         }
 
-        ScissorVoice.prototype.start = function(time) {
+        ScissorVoice.prototype.start = function(time, velocity) {
+          if (velocity) {
+            return this.output.gain.setValueAtTime(velocity / 127, time);
+          }
           return this.output.gain.setValueAtTime(this.maxGain, time);
         };
 
