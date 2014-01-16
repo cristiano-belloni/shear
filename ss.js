@@ -111,7 +111,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           if (this.voices[note] != null) {
             return;
           }
-          if (time == null) {
+          if (!time) {
             time = this.context.currentTime;
           }
           freq = noteToFrequency(note);
@@ -142,6 +142,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
 
         ScissorVoice = (function() {
         function ScissorVoice(context, frequency, numSaws, detune, velocity, adsr) {
+
           var i, saw, _i, _ref;
           this.context = context;
           this.frequency = frequency;
@@ -170,14 +171,20 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
 
         ScissorVoice.prototype.start = function(time) {
 
-            //return this.output.gain.setValueAtTime(this.maxGain, time);
+            //console.log ("ADSR", this.envelope);
+
+            var attackTime = time + this.envelope.attack;
+            var decayTime = attackTime + this.envelope.decay;
+
+            //console.log ("time is: " + time + " attack time is: " + attackTime + " decay time is " + decayTime);
+
             this.noteOnTime = time;
             //pin value to ramp from
-            this.output.gain.setValueAtTime(this.maxGain, time);
+            this.output.gain.setValueAtTime(0.0, time);
             //attack
-            this.output.gain.linearRampToValueAtTime(this.maxGain, time + this.envelope.attack);
+            this.output.gain.linearRampToValueAtTime(this.maxGain, attackTime);
             //decay
-            this.output.gain.linearRampToValueAtTime(this.envelope.sustain * this.maxGain, time + this.envelope.attack + this.envelope.decay);
+            this.output.gain.linearRampToValueAtTime(this.envelope.sustain * this.maxGain, decayTime);
         };
 
         ScissorVoice.prototype.stop = function(time) {
@@ -185,14 +192,8 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           var _this = this;
           this.noteOffTime = time;
 
-          //this.output.gain.setValueAtTime(0, time);
-
           this.output.gain.cancelScheduledValues(time);
 
-          //release
-          // Can't do this: if we're in an attack ramp or in a decay, the value will be something different from the sustain or the attack
-          // value, which we can't predict. All events have been cancelled, so let's hope that it starts from the value at time time.
-          // this.output.gain.setValueAtTime(valueatthetime?, time);
           this.output.gain.linearRampToValueAtTime(0.0, time + this.envelope.release);
 
           return setTimeout((function() {
