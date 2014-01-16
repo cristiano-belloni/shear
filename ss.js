@@ -11,7 +11,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
             enabled: true,
             parameters: {
                 waves: {
-                    name: ['#waves', '#'],
+                    name: ['Waves', 'W'],
                     label: '',
                     range: {
                         min: 1,
@@ -20,12 +20,48 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
                     }
                 },
                 detune: {
-                    name: ['Detune', 'D'],
+                    name: ['Detune', 'd'],
                     label: 'st',
                     range: {
                         min: 1,
                         default: 12,
                         max: 60
+                    }
+                },
+                attack: {
+                    name: ['Attack', 'A'],
+                    label: 'sec',
+                    range: {
+                        min: 0,
+                        default: 0,
+                        max: 1
+                    }
+                },
+                decay: {
+                    name: ['Decay', 'd'],
+                    label: 'sec',
+                    range: {
+                        min: 0,
+                        default: 3,
+                        max: 3
+                    }
+                },
+                sustain: {
+                    name: ['Sustain', 'S'],
+                    label: 'ratio',
+                    range: {
+                        min: 0,
+                        default: 1,
+                        max: 1
+                    }
+                },
+                release: {
+                    name: ['Release', 'R'],
+                    label: 'sec',
+                    range: {
+                        min: 0,
+                        default: 1,
+                        max: 3
                     }
                 }
             }
@@ -34,19 +70,25 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
   
     var pluginFunction = function(args) {
 
+        for (var param in pluginConf.hostParameters.parameters) {
+            if (pluginConf.hostParameters.parameters.hasOwnProperty(param)) {
+                args.hostInterface.setParm (param, pluginConf.hostParameters.parameters[param].range.default);
+            }
+        }
+
         /* SCISSOR */
 
         var Scissor, ScissorVoice, noteToFrequency, adsr;
 
         adsr = {
           /* Duration of attack, time in seconds. From 0 to 1, default 0 */
-          attack: 0.1,
+          attack: pluginConf.hostParameters.parameters.attack.range.default,
           /* Duration of decay, time in seconds. From 0 to 3, default 3 */
-          decay: 0.3,
+          decay: pluginConf.hostParameters.parameters.decay.range.default,
           /* Ratio of sustain, relative to maxGain (velocity). From 0 to 1, default 1 */
-          sustain: 1.0,
+          sustain: pluginConf.hostParameters.parameters.sustain.range.default,
           /* Duration of release, time in seconds. From 0 to 3, default 1 */
-          release: 1.0,
+          release: pluginConf.hostParameters.parameters.release.range.default,
         };
 
         Scissor = (function() {
@@ -107,8 +149,10 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           this.detune = detune;
           this.output = this.context.createGain();
           this.output.gain.value = 0;
-          this.adsr = adsr;
-          this.maxGain = 1 / this.numSaws;
+          this.envelope = adsr;
+          this.noteOnTime = null;
+          this.noteOffTime = null;
+          this.maxGain = 1 / this.numSaws;       
           if (velocity) {
             this.maxGain = this.maxGain * velocity / 127;
           }
@@ -125,8 +169,9 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         }
 
         ScissorVoice.prototype.start = function(time) {
+
             //return this.output.gain.setValueAtTime(this.maxGain, time);
-            var now = time;
+            this.noteOnTime = time;
             //pin value to ramp from
             this.output.gain.setValueAtTime(this.maxGain, time);
             //attack
@@ -136,8 +181,9 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         };
 
         ScissorVoice.prototype.stop = function(time) {
+
           var _this = this;
-          var now = time;
+          this.noteOffTime = time;
 
           //this.output.gain.setValueAtTime(0, time);
 
@@ -183,6 +229,20 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         /* Parameter callback */
         var onParmChange = function (id, value) {
             // TODO
+            switch (id) {
+              case ("attack"):
+              adsr.attack = value;
+              break;
+              case ("decay"):
+              adsr.decay = value;
+              break;
+              case ("sustain"):
+              adsr.sustain = value;
+              break;
+              case ("release"):
+              adsr.release = value;
+              break;
+            }
         };
 
         if (args.initialState && args.initialState.data) {
@@ -213,7 +273,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
             var now = this.context.currentTime;
             //console.log ("arrived MIDI message: type / when / now", message.type, when, now);
             if (when && (when < now)) {
-                console.log ("MORNINGSTAR: ******** OUT OF TIME OFF MESSAGE");
+                console.log ("SHEAR: ******** OUT OF TIME MESSAGE " + message.type + " " + when + " < " + now);
             }
             if (message.type === 'noteon') {
                 if (!when) {
