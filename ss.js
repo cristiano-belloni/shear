@@ -36,7 +36,18 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
 
         /* SCISSOR */
 
-        var Scissor, ScissorVoice, noteToFrequency;
+        var Scissor, ScissorVoice, noteToFrequency, adsr;
+
+        adsr = {
+          /* Duration of attack, time in seconds. From 0 to 1, default 0 */
+          attack: 0.1,
+          /* Duration of decay, time in seconds. From 0 to 3, default 3 */
+          decay: 0.3,
+          /* Ratio of sustain, relative to maxGain (velocity). From 0 to 1, default 1 */
+          sustain: 1.0,
+          /* Duration of release, time in seconds. From 0 to 3, default 1 */
+          release: 1.0,
+        };
 
         Scissor = (function() {
         function Scissor(context) {
@@ -62,7 +73,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
             time = this.context.currentTime;
           }
           freq = noteToFrequency(note);
-          voice = new ScissorVoice(this.context, freq, this.numSaws, this.detune, velocity);
+          voice = new ScissorVoice(this.context, freq, this.numSaws, this.detune, velocity, adsr);
           voice.connect(this.delay.input);
           voice.start(time);
           return this.voices[note] = voice;
@@ -88,7 +99,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         }) ();
 
         ScissorVoice = (function() {
-        function ScissorVoice(context, frequency, numSaws, detune, velocity) {
+        function ScissorVoice(context, frequency, numSaws, detune, velocity, adsr) {
           var i, saw, _i, _ref;
           this.context = context;
           this.frequency = frequency;
@@ -96,6 +107,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           this.detune = detune;
           this.output = this.context.createGain();
           this.output.gain.value = 0;
+          this.adsr = adsr;
           this.maxGain = 1 / this.numSaws;
           if (velocity) {
             this.maxGain = this.maxGain * velocity / 127;
@@ -113,17 +125,35 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         }
 
         ScissorVoice.prototype.start = function(time) {
-            return this.output.gain.setValueAtTime(this.maxGain, time);
+            //return this.output.gain.setValueAtTime(this.maxGain, time);
+            var now = time;
+            //pin value to ramp from
+            this.output.gain.setValueAtTime(this.maxGain, time);
+            //attack
+            this.output.gain.linearRampToValueAtTime(this.maxGain, time + this.envelope.attack);
+            //decay
+            this.output.gain.linearRampToValueAtTime(this.envelope.sustain * this.maxGain, time + this.envelope.attack + this.envelope.decay);
         };
 
         ScissorVoice.prototype.stop = function(time) {
           var _this = this;
-          this.output.gain.setValueAtTime(0, time);
+          var now = time;
+
+          //this.output.gain.setValueAtTime(0, time);
+
+          this.output.gain.cancelScheduledValues(time);
+
+          //release
+          // Can't do this: if we're in an attack ramp or in a decay, the value will be something different from the sustain or the attack
+          // value, which we can't predict. All events have been cancelled, so let's hope that it starts from the value at time time.
+          // this.output.gain.setValueAtTime(valueatthetime?, time);
+          this.output.gain.linearRampToValueAtTime(0.0, time + this.envelope.release);
+
           return setTimeout((function() {
             return _this.saws.forEach(function(saw) {
               return saw.disconnect();
             });
-          }), Math.floor((time - this.context.currentTime) * 1000));
+          }), Math.floor(((time + this.envelope.release) - this.context.currentTime) * 1000));
         };
 
         ScissorVoice.prototype.connect = function(target) {
