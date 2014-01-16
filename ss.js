@@ -54,20 +54,17 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
 
         Scissor.prototype.noteOn = function(note, time, velocity) {
           var freq, voice;
-          if (velocity == 0) {
-            this.noteOff(note,time);
-            return;
-          }
+          // TODO VELOCITY 0
           if (this.voices[note] != null) {
-            this.noteOff(note,time);
+            return;
           }
           if (time == null) {
             time = this.context.currentTime;
           }
           freq = noteToFrequency(note);
-          voice = new ScissorVoice(this.context, freq, this.numSaws, this.detune);
+          voice = new ScissorVoice(this.context, freq, this.numSaws, this.detune, velocity);
           voice.connect(this.delay.input);
-          voice.start(time, velocity);
+          voice.start(time);
           return this.voices[note] = voice;
         };
 
@@ -91,18 +88,22 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         }) ();
 
         ScissorVoice = (function() {
-        function ScissorVoice(context, frequency, numSaws, detune) {
+        function ScissorVoice(context, frequency, numSaws, detune, velocity) {
           var i, saw, _i, _ref;
           this.context = context;
           this.frequency = frequency;
           this.numSaws = numSaws;
           this.detune = detune;
           this.output = this.context.createGain();
+          this.output.gain.value = 0;
           this.maxGain = 1 / this.numSaws;
+          if (velocity) {
+            this.maxGain = this.maxGain * velocity / 127;
+          }
           this.saws = [];
           for (i = _i = 0, _ref = this.numSaws; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
             saw = this.context.createOscillator();
-            saw.type = saw.SAWTOOTH/*saw.SQUARE*/;
+            saw.type = saw.SAWTOOTH /*saw.SQUARE*/;
             saw.frequency.value = this.frequency;
             saw.detune.value = -this.detune + i * 2 * this.detune / (this.numSaws - 1);
             saw.start(this.context.currentTime);
@@ -111,11 +112,8 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           }
         }
 
-        ScissorVoice.prototype.start = function(time, velocity) {
-          if (velocity) {
-            return this.output.gain.setValueAtTime(velocity / 127, time);
-          }
-          return this.output.gain.setValueAtTime(this.maxGain, time);
+        ScissorVoice.prototype.start = function(time) {
+            return this.output.gain.setValueAtTime(this.maxGain, time);
         };
 
         ScissorVoice.prototype.stop = function(time) {
@@ -137,7 +135,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         })();
 
         noteToFrequency = function(note) {
-        return Math.pow(2, (note - 69) / 12) * 440.0;
+            return Math.pow(2, (note - 69) / 12) * 440.0;
         };
 
         /* /SCISSOR */
@@ -189,10 +187,10 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
             }
             if (message.type === 'noteon') {
                 if (!when) {
-                    this.scissor.noteOn(message.pitch);
+                    this.scissor.noteOn(message.pitch, 0, message.velocity);
                 }
                 else {
-                    this.scissor.noteOn(message.pitch, when);
+                    this.scissor.noteOn(message.pitch, when, message.velocity);
                 }
             }
             if (message.type === 'noteoff') {
