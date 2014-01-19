@@ -92,6 +92,7 @@ define(['require','github:janesconference/tuna@master/tuna',
           this.voices = [];
           this.numSaws = 3;
           this.detune = 12;
+          this.wavetype = 0;
         }
 
         Shear.prototype.noteOn = function(note, time, velocity, ads) {
@@ -104,7 +105,7 @@ define(['require','github:janesconference/tuna@master/tuna',
             time = this.context.currentTime;
           }
           freq = noteToFrequency(note);
-          voice = new ShearVoice(this.context, freq, this.numSaws, this.detune, velocity);
+          voice = new ShearVoice(this.context, freq, this.numSaws, this.detune, velocity, this.wavetype);
           voice.connect(this.delay.input);
           voice.start(time, ads);
           return this.voices[note] = voice;
@@ -130,7 +131,7 @@ define(['require','github:janesconference/tuna@master/tuna',
         }) ();
 
         ShearVoice = (function() {
-        function ShearVoice(context, frequency, numSaws, detune, velocity) {
+        function ShearVoice(context, frequency, numSaws, detune, velocity, wavetype) {
 
           var i, saw, _i, _ref;
           this.context = context;
@@ -148,7 +149,13 @@ define(['require','github:janesconference/tuna@master/tuna',
           this.saws = [];
           for (i = _i = 0, _ref = this.numSaws; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
             saw = this.context.createOscillator();
-            saw.type = saw.SAWTOOTH /*saw.SQUARE*/;
+            if (wavetype === 1) {
+                saw.type = saw.SQUARE;
+            }
+              else {
+                saw.type = saw.SAWTOOTH;
+            }
+
             saw.frequency.value = this.frequency;
             saw.detune.value = -this.detune + i * 2 * this.detune / (this.numSaws - 1);
             saw.start(this.context.currentTime);
@@ -211,7 +218,9 @@ define(['require','github:janesconference/tuna@master/tuna',
 
         var knobImage = resources[0];
         var deckImage = resources[1];
-        
+        var buttonSaw = resources[2];
+        var buttonSquare = resources[3];
+
         this.id = args.id;
         this.audioDestination = args.audioDestinations[0];
         this.context = args.audioContext;
@@ -249,6 +258,15 @@ define(['require','github:janesconference/tuna@master/tuna',
                   this.pluginState.detune = roundV;
                   this.shear.detune = roundV;
               break;
+                case ("wavetype"):
+                    if (value === 1) {
+                        this.pluginState.wavetype = 1;
+                        this.shear.wavetype = 1;
+                    }
+                    else {
+                        this.pluginState.wavetype = 0;
+                        this.shear.wavetype = 0;
+                    }
             }
         };
 
@@ -264,7 +282,8 @@ define(['require','github:janesconference/tuna@master/tuna',
                 'sustain': pluginConf.hostParameters.parameters.sustain.range.default,
                 'release': pluginConf.hostParameters.parameters.release.range.default,
                 'waves': pluginConf.hostParameters.parameters.waves.range.default,
-                'detune': pluginConf.hostParameters.parameters.detune.range.default
+                'detune': pluginConf.hostParameters.parameters.detune.range.default,
+                'wavetype': 0
             };
         }
 
@@ -363,6 +382,23 @@ define(['require','github:janesconference/tuna@master/tuna',
             console.log ("Setting", currKnob.id, "to value", rangedInitValue);
             this.ui.setValue ({elementID: knobArgs.ID, value: rangedInitValue, fireCallback:false});
         }
+
+        // BUTTON
+
+        var buttonArgs = {
+            ID: "wavetype",
+            left: 485,
+            top: 58,
+            imagesArray : [buttonSaw, buttonSquare],
+            onValueSet: function (slot, value, element) {
+                onParmChange.call (this, element, value);
+                this.ui.refresh();
+            }.bind(this),
+            isClickable: true
+        };
+
+        this.ui.addElement(new K2.Button(buttonArgs));
+        this.ui.setValue ({elementID: buttonArgs.ID, value: this.pluginState.wavetype, fireCallback:false});
 
         this.ui.refresh();
 
