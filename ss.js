@@ -22,7 +22,7 @@ define(['require','github:janesconference/tuna@master/tuna',
                     range: {
                         min: 1,
                         default: 3,
-                        max: 200
+                        max: 9
                     }
                 },
                 detune: {
@@ -75,12 +75,6 @@ define(['require','github:janesconference/tuna@master/tuna',
     };
   
     var pluginFunction = function(args, resources) {
-
-        /*for (var param in pluginConf.hostParameters.parameters) {
-            if (pluginConf.hostParameters.parameters.hasOwnProperty(param)) {
-                args.hostInterface.setParm (param, pluginConf.hostParameters.parameters[param].range.default);
-            }
-        }*/
 
         /* SHEAR */
 
@@ -230,6 +224,7 @@ define(['require','github:janesconference/tuna@master/tuna',
 
         /* Parameter callback */
         var onParmChange = function (id, value) {
+            var roundV;
             switch (id) {
               case ("attack"):
                     this.pluginState.attack = value;
@@ -242,6 +237,17 @@ define(['require','github:janesconference/tuna@master/tuna',
               break;
               case ("release"):
                   this.pluginState.release = value;
+              break;
+              case ("waves"):
+                  roundV = Math.round(value);
+                  console.log ("Using " + roundV + " waves");
+                  this.pluginState.waves = roundV;
+                  this.shear.numSaws = roundV;
+              break;
+              case ("detune"):
+                  roundV = Math.round(value);
+                  this.pluginState.detune = roundV;
+                  this.shear.detune = roundV;
               break;
             }
         };
@@ -401,7 +407,7 @@ define(['require','github:janesconference/tuna@master/tuna',
                 }
 
             }
-            if (message.type === 'noteoff') {
+            else if (message.type === 'noteoff') {
 
                 if (!when) {
                     this.shearNoteOff(message.pitch, 0);
