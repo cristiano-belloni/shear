@@ -1,4 +1,5 @@
-define(['require','github:janesconference/tuna@master/tuna'], function(require, Tuna) {
+define(['require','github:janesconference/tuna@master/tuna',
+        'github:janesconference/KievII@0.6.0/kievII'], function(require, Tuna, K2) {
   
     var pluginConf = {
         name: "Shear",
@@ -7,8 +8,13 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         audioIn: 0,
         version: '0.0.1',
         hyaId: 'ShearSynth',
+        ui: {
+            type: 'canvas',
+            width: 574,
+            height: 230
+        },
         hostParameters : {
-            enabled: true,
+            enabled: false,
             parameters: {
                 waves: {
                     name: ['Waves', 'W'],
@@ -68,13 +74,13 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         }
     };
   
-    var pluginFunction = function(args) {
+    var pluginFunction = function(args, resources) {
 
-        for (var param in pluginConf.hostParameters.parameters) {
+        /*for (var param in pluginConf.hostParameters.parameters) {
             if (pluginConf.hostParameters.parameters.hasOwnProperty(param)) {
                 args.hostInterface.setParm (param, pluginConf.hostParameters.parameters[param].range.default);
             }
-        }
+        }*/
 
         /* SCISSOR */
 
@@ -88,7 +94,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           /* Ratio of sustain, relative to maxGain (velocity). From 0 to 1, default 1 */
           sustain: pluginConf.hostParameters.parameters.sustain.range.default,
           /* Duration of release, time in seconds. From 0 to 3, default 1 */
-          release: pluginConf.hostParameters.parameters.release.range.default,
+          release: pluginConf.hostParameters.parameters.release.range.default
         };
 
         Scissor = (function() {
@@ -125,7 +131,7 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
           if (this.voices[note] == null) {
             return;
           }
-          if (time == null) {
+          if (!time) {
             time = this.context.currentTime;
           }
           this.voices[note].stop(time);
@@ -216,6 +222,9 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         };
 
         /* /SCISSOR */
+
+        var knobImage = resources[0];
+        var deckImage = resources[1];
         
         this.id = args.id;
         this.audioDestination = args.audioDestinations[0];
@@ -229,7 +238,6 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
 
         /* Parameter callback */
         var onParmChange = function (id, value) {
-            // TODO
             switch (id) {
               case ("attack"):
               adsr.attack = value;
@@ -253,22 +261,121 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         else {
             /* Use default data */
             this.pluginState = {
-                // TODO
+                'attack': pluginConf.hostParameters.parameters.attack.range.default,
+                'decay':  pluginConf.hostParameters.parameters.decay.range.default,
+                'sustain': pluginConf.hostParameters.parameters.sustain.range.default,
+                'release': pluginConf.hostParameters.parameters.release.range.default,
+                'waves': pluginConf.hostParameters.parameters.waves.range.default,
+                'detune': pluginConf.hostParameters.parameters.detune.range.default
             };
         }
 
         for (param in this.pluginState) {
             if (this.pluginState.hasOwnProperty(param)) {
-                args.hostInterface.setParm (param, this.pluginState[param]);
+                /* args.hostInterface.setParm (param, this.pluginState[param]); */
                 onParmChange.apply (this, [param, this.pluginState[param]]);
             }
         }
+
+
+        // INTERFACE STUFF
+
+        /* INTERFACE INIT */
+        this.ui = new K2.UI ({type: 'CANVAS2D', target: args.canvas}, {'breakOnFirstEvent': true});
+
+        /* BACKGROUND INIT */
+        var bgArgs = new K2.Background({
+            ID: 'background',
+            image: deckImage,
+            top: 0,
+            left: 0
+        });
+
+        this.ui.addElement(bgArgs, {zIndex: 0});
+
+        /* KEYS INIT */
+        var keyCB = function (slot,value, element) {
+            console.log ("Callback called for", element);
+            var note, octave;
+
+            var note = element;
+            note += 60;
+            if (value === 1) {
+                this.scissor.noteOn(note, 0, 95);
+            }
+            else {
+                this.scissor.noteOff(note, 0);
+            }
+
+            this.ui.refresh();
+        }.bind(this);
+
+        var key = {
+            ID: "",
+            left: 0,
+            top: 130,
+            mode: 'immediate',
+            imagesArray : null,
+            onValueSet: keyCB
+        };
+
+        for (var i = 0; i < 12; i+=1) {
+            key.ID = i;
+            key.left = 15 + (i * 45);
+            key.imagesArray = [resources[4 + i * 2], resources[5 + i * 2]];
+            this.ui.addElement(new K2.Button(key), {zIndex: 1});
+        }
+
+        /* KNOB INIT */
+        // TODO these are duplicates
+        this.knobDescription = [
+            {id: 'attack', init: this.pluginState.attack, x: 195, y: 59},
+            {id: 'decay', init: this.pluginState.decay, x: 264, y: 59},
+            {id: 'sustain', init: this.pluginState.sustain, x: 336, y: 59},
+            {id: 'release', init: this.pluginState.release, x: 406, y: 59},
+            {id: 'waves', init: this.pluginState.waves, x: 30, y: 59},
+            {id: 'detune', init: this.pluginState.detune, x: 102, y: 59}
+        ];
+
+        var knobArgs = {
+            ID: '',
+            left: 0 ,
+            top: 140,
+            imagesArray : [knobImage],
+            sensitivity : 5000,
+            tileWidth: 48,
+            tileHeight: 48,
+            imageNum: 64,
+            bottomAngularOffset: 33,
+            onValueSet: function (slot, value, element) {
+                this.pluginState[element] = value;
+                var scaledValue = K2.MathUtils.linearRange (0, 1, pluginConf.hostParameters.parameters[element].range.min, pluginConf.hostParameters.parameters[element].range.max, value);
+                onParmChange.call (this, element, scaledValue);
+                this.ui.refresh();
+            }.bind(this),
+            isListening: true
+        };
+
+        for (var i = 0; i < this.knobDescription.length; i+=1) {
+            var currKnob = this.knobDescription[i];
+            knobArgs.ID = currKnob.id;
+            knobArgs.top = currKnob.y;
+            knobArgs.left = currKnob.x;
+            this.ui.addElement(new K2.Knob(knobArgs));
+            var initValue = currKnob.init;
+            var rangedInitValue = K2.MathUtils.linearRange (pluginConf.hostParameters.parameters[currKnob.id].range.min, pluginConf.hostParameters.parameters[currKnob.id].range.max, 0, 1, initValue);
+            console.log ("Setting", currKnob.id, "to value", rangedInitValue);
+            this.ui.setValue ({elementID: knobArgs.ID, value: rangedInitValue, fireCallback:false});
+        }
+
+        this.ui.refresh();
+
+        // /INTERFACE
 
         var saveState = function () {
             return { data: this.pluginState };
         };
         args.hostInterface.setSaveState (saveState.bind(this));
-        args.hostInterface.setHostCallback (onParmChange.bind(this));
 
         var onMIDIMessage = function (message, when) {
             var now = this.context.currentTime;
@@ -299,13 +406,43 @@ define(['require','github:janesconference/tuna@master/tuna'], function(require, 
         // Initialization made it so far: plugin is ready.
         args.hostInterface.setInstanceStatus ('ready');
     };
-    
-    
+
+
     var initPlugin = function(initArgs) {
         var args = initArgs;
 
-        pluginFunction.call (this, args);
-    
+        var requireErr = function (err) {
+            args.hostInterface.setInstanceStatus ('fatal', {description: 'Error initializing plugin.'});
+        }.bind(this);
+
+        var keyNotes = 60;
+        var resList = [
+            './assets/images/48x48x64.png!image',
+            './assets/images/deck.png!image',
+            './assets/images/buttonsaw.png!image',
+            './assets/images/buttonsquare.png!image'
+        ];
+
+        var keyNotes_images = [];
+        for (var i = 0; i < 12; i+=1) {
+            keyNotes_images.push('./assets/images/' + (keyNotes + i) + '_i.png!image');
+            keyNotes_images.push('./assets/images/' + (keyNotes + i) + '_a.png!image');
+        }
+        resList = resList.concat(keyNotes_images);
+
+        console.log ("requiring...");
+
+        require (resList,
+            function () {
+                console.log ("required...");
+                pluginFunction.call (this, args, arguments);
+            }.bind(this),
+            function (err) {
+                console.log ("require error");
+                requireErr (err);
+            }
+        );
+
     };
         
     return {
