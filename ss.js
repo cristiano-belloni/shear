@@ -84,18 +84,7 @@ define(['require','github:janesconference/tuna@master/tuna',
 
         /* SHEAR */
 
-        var Shear, ShearVoice, noteToFrequency, adsr;
-
-        adsr = {
-          /* Duration of attack, time in seconds. From 0 to 1, default 0 */
-          attack: pluginConf.hostParameters.parameters.attack.range.default,
-          /* Duration of decay, time in seconds. From 0 to 3, default 3 */
-          decay: pluginConf.hostParameters.parameters.decay.range.default,
-          /* Ratio of sustain, relative to maxGain (velocity). From 0 to 1, default 1 */
-          sustain: pluginConf.hostParameters.parameters.sustain.range.default,
-          /* Duration of release, time in seconds. From 0 to 3, default 1 */
-          release: pluginConf.hostParameters.parameters.release.range.default
-        };
+        var Shear, ShearVoice, noteToFrequency;
 
         Shear = (function() {
         function Shear(context) {
@@ -111,7 +100,7 @@ define(['require','github:janesconference/tuna@master/tuna',
           this.detune = 12;
         }
 
-        Shear.prototype.noteOn = function(note, time, velocity) {
+        Shear.prototype.noteOn = function(note, time, velocity, ads) {
           var freq, voice;
           // TODO VELOCITY 0
           if (this.voices[note] != null) {
@@ -121,20 +110,20 @@ define(['require','github:janesconference/tuna@master/tuna',
             time = this.context.currentTime;
           }
           freq = noteToFrequency(note);
-          voice = new ShearVoice(this.context, freq, this.numSaws, this.detune, velocity, adsr);
+          voice = new ShearVoice(this.context, freq, this.numSaws, this.detune, velocity);
           voice.connect(this.delay.input);
-          voice.start(time);
+          voice.start(time, ads);
           return this.voices[note] = voice;
         };
 
-        Shear.prototype.noteOff = function(note, time) {
+        Shear.prototype.noteOff = function(note, time, r) {
           if (this.voices[note] == null) {
             return;
           }
           if (!time) {
             time = this.context.currentTime;
           }
-          this.voices[note].stop(time);
+          this.voices[note].stop(time, r);
           return delete this.voices[note];
         };
 
@@ -147,7 +136,7 @@ define(['require','github:janesconference/tuna@master/tuna',
         }) ();
 
         ShearVoice = (function() {
-        function ShearVoice(context, frequency, numSaws, detune, velocity, adsr) {
+        function ShearVoice(context, frequency, numSaws, detune, velocity) {
 
           var i, saw, _i, _ref;
           this.context = context;
@@ -156,7 +145,6 @@ define(['require','github:janesconference/tuna@master/tuna',
           this.detune = detune;
           this.output = this.context.createGain();
           this.output.gain.value = 0;
-          this.envelope = adsr;
           this.noteOnTime = null;
           this.noteOffTime = null;
           this.maxGain = 1 / this.numSaws;       
@@ -175,12 +163,13 @@ define(['require','github:janesconference/tuna@master/tuna',
           }
         }
 
-        ShearVoice.prototype.start = function(time) {
+        ShearVoice.prototype.start = function(time, ads) {
 
-            //console.log ("ADSR", this.envelope);
+            // save sustain level for later
+            this.sustain = ads.sustain;
 
-            var attackTime = time + this.envelope.attack;
-            var decayTime = attackTime + this.envelope.decay;
+            var attackTime = time + ads.attack;
+            var decayTime = attackTime + ads.decay;
 
             //console.log ("time is: " + time + " attack time is: " + attackTime + " decay time is " + decayTime);
 
@@ -190,10 +179,10 @@ define(['require','github:janesconference/tuna@master/tuna',
             //attack
             this.output.gain.linearRampToValueAtTime(this.maxGain, attackTime);
             //decay
-            this.output.gain.linearRampToValueAtTime(this.envelope.sustain * this.maxGain, decayTime);
+            this.output.gain.linearRampToValueAtTime(ads.sustain * this.maxGain, decayTime);
         };
 
-        ShearVoice.prototype.stop = function(time) {
+        ShearVoice.prototype.stop = function(time, r) {
 
           var _this = this;
           this.noteOffTime = time;
@@ -201,15 +190,15 @@ define(['require','github:janesconference/tuna@master/tuna',
           this.output.gain.cancelScheduledValues(time);
 
           // release always starts at sustain volume, so set it
-          this.output.gain.setValueAtTime(this.envelope.sustain * this.maxGain, time);
+          this.output.gain.setValueAtTime(this.sustain * this.maxGain, time);
 
-          this.output.gain.linearRampToValueAtTime(0.0, time + this.envelope.release);
+          this.output.gain.linearRampToValueAtTime(0.0, time + r.release);
 
           return setTimeout((function() {
             return _this.saws.forEach(function(saw) {
               return saw.disconnect();
             });
-          }), Math.floor(((time + this.envelope.release) - this.context.currentTime) * 1000));
+          }), Math.floor(((time + r.release) - this.context.currentTime) * 1000));
         };
 
         ShearVoice.prototype.connect = function(target) {
@@ -243,16 +232,16 @@ define(['require','github:janesconference/tuna@master/tuna',
         var onParmChange = function (id, value) {
             switch (id) {
               case ("attack"):
-              adsr.attack = value;
+                    this.pluginState.attack = value;
               break;
               case ("decay"):
-              adsr.decay = value;
+                  this.pluginState.decay = value;
               break;
               case ("sustain"):
-              adsr.sustain = value;
+                  this.pluginState.sustain = value;
               break;
               case ("release"):
-              adsr.release = value;
+                  this.pluginState.release = value;
               break;
             }
         };
@@ -299,15 +288,13 @@ define(['require','github:janesconference/tuna@master/tuna',
         /* KEYS INIT */
         var keyCB = function (slot,value, element) {
             console.log ("Callback called for", element);
-            var note, octave;
-
             var note = element;
             note += 60;
             if (value === 1) {
-                this.shear.noteOn(note, 0, 95);
+                this.shearNoteOn(note, 0, 95);
             }
             else {
-                this.shear.noteOff(note, 0);
+                this.shearNoteOff(note, 0);
             }
 
             this.ui.refresh();
@@ -375,6 +362,23 @@ define(['require','github:janesconference/tuna@master/tuna',
 
         // /INTERFACE
 
+        this.shearNoteOn = function (pitch, when, velocity) {
+            var ads = {
+                attack: this.pluginState.attack,
+                decay: this.pluginState.attack,
+                sustain: this.pluginState.sustain
+            };
+            this.shear.noteOn(pitch, when, velocity, ads);
+
+        }
+
+        this.shearNoteOff = function (pitch, when) {
+            var r = {
+                release: this.pluginState.release
+            };
+            this.shear.noteOff(pitch, when, r);
+        }
+
         var saveState = function () {
             return { data: this.pluginState };
         };
@@ -386,20 +390,24 @@ define(['require','github:janesconference/tuna@master/tuna',
             if (when && (when < now)) {
                 console.log ("SHEAR: ******** OUT OF TIME MESSAGE " + message.type + " " + when + " < " + now);
             }
+
             if (message.type === 'noteon') {
+
                 if (!when) {
-                    this.shear.noteOn(message.pitch, 0, message.velocity);
+                    this.shearNoteOn(message.pitch, 0, message.velocity);
                 }
                 else {
-                    this.shear.noteOn(message.pitch, when, message.velocity);
+                    this.shearNoteOn(message.pitch, when, message.velocity);
                 }
+
             }
             if (message.type === 'noteoff') {
+
                 if (!when) {
-                    this.shear.noteOff(message.pitch);
+                    this.shearNoteOff(message.pitch, 0);
                 }
                 else {
-                    this.shear.noteOff(message.pitch, when);
+                    this.shearNoteOff(message.pitch, when);
                 }
             }
         };
