@@ -82,9 +82,9 @@ define(['require','github:janesconference/tuna@master/tuna',
             }
         }*/
 
-        /* SCISSOR */
+        /* SHEAR */
 
-        var Scissor, ScissorVoice, noteToFrequency, adsr;
+        var Shear, ShearVoice, noteToFrequency, adsr;
 
         adsr = {
           /* Duration of attack, time in seconds. From 0 to 1, default 0 */
@@ -97,8 +97,8 @@ define(['require','github:janesconference/tuna@master/tuna',
           release: pluginConf.hostParameters.parameters.release.range.default
         };
 
-        Scissor = (function() {
-        function Scissor(context) {
+        Shear = (function() {
+        function Shear(context) {
           this.context = context;
           this.tuna = new Tuna(this.context);
           this.output = this.context.createGain();
@@ -111,7 +111,7 @@ define(['require','github:janesconference/tuna@master/tuna',
           this.detune = 12;
         }
 
-        Scissor.prototype.noteOn = function(note, time, velocity) {
+        Shear.prototype.noteOn = function(note, time, velocity) {
           var freq, voice;
           // TODO VELOCITY 0
           if (this.voices[note] != null) {
@@ -121,13 +121,13 @@ define(['require','github:janesconference/tuna@master/tuna',
             time = this.context.currentTime;
           }
           freq = noteToFrequency(note);
-          voice = new ScissorVoice(this.context, freq, this.numSaws, this.detune, velocity, adsr);
+          voice = new ShearVoice(this.context, freq, this.numSaws, this.detune, velocity, adsr);
           voice.connect(this.delay.input);
           voice.start(time);
           return this.voices[note] = voice;
         };
 
-        Scissor.prototype.noteOff = function(note, time) {
+        Shear.prototype.noteOff = function(note, time) {
           if (this.voices[note] == null) {
             return;
           }
@@ -138,16 +138,16 @@ define(['require','github:janesconference/tuna@master/tuna',
           return delete this.voices[note];
         };
 
-        Scissor.prototype.connect = function(target) {
+        Shear.prototype.connect = function(target) {
           return this.output.connect(target);
         };
 
-        return Scissor;
+        return Shear;
 
         }) ();
 
-        ScissorVoice = (function() {
-        function ScissorVoice(context, frequency, numSaws, detune, velocity, adsr) {
+        ShearVoice = (function() {
+        function ShearVoice(context, frequency, numSaws, detune, velocity, adsr) {
 
           var i, saw, _i, _ref;
           this.context = context;
@@ -175,7 +175,7 @@ define(['require','github:janesconference/tuna@master/tuna',
           }
         }
 
-        ScissorVoice.prototype.start = function(time) {
+        ShearVoice.prototype.start = function(time) {
 
             //console.log ("ADSR", this.envelope);
 
@@ -193,12 +193,15 @@ define(['require','github:janesconference/tuna@master/tuna',
             this.output.gain.linearRampToValueAtTime(this.envelope.sustain * this.maxGain, decayTime);
         };
 
-        ScissorVoice.prototype.stop = function(time) {
+        ShearVoice.prototype.stop = function(time) {
 
           var _this = this;
           this.noteOffTime = time;
 
           this.output.gain.cancelScheduledValues(time);
+
+          // release always starts at sustain volume, so set it
+          this.output.gain.setValueAtTime(this.envelope.sustain * this.maxGain, time);
 
           this.output.gain.linearRampToValueAtTime(0.0, time + this.envelope.release);
 
@@ -209,11 +212,11 @@ define(['require','github:janesconference/tuna@master/tuna',
           }), Math.floor(((time + this.envelope.release) - this.context.currentTime) * 1000));
         };
 
-        ScissorVoice.prototype.connect = function(target) {
+        ShearVoice.prototype.connect = function(target) {
           return this.output.connect(target);
         };
 
-        return ScissorVoice;
+        return ShearVoice;
 
         })();
 
@@ -221,7 +224,7 @@ define(['require','github:janesconference/tuna@master/tuna',
             return Math.pow(2, (note - 69) / 12) * 440.0;
         };
 
-        /* /SCISSOR */
+        /* /SHEAR */
 
         var knobImage = resources[0];
         var deckImage = resources[1];
@@ -233,8 +236,8 @@ define(['require','github:janesconference/tuna@master/tuna',
         this.masterGain = this.context.createGain();
         this.masterGain.gain.value = 0.7;
         this.masterGain.connect(this.audioDestination);
-        this.scissor = new Scissor(this.context);
-        this.scissor.connect(this.masterGain);
+        this.shear = new Shear(this.context);
+        this.shear.connect(this.masterGain);
 
         /* Parameter callback */
         var onParmChange = function (id, value) {
@@ -301,10 +304,10 @@ define(['require','github:janesconference/tuna@master/tuna',
             var note = element;
             note += 60;
             if (value === 1) {
-                this.scissor.noteOn(note, 0, 95);
+                this.shear.noteOn(note, 0, 95);
             }
             else {
-                this.scissor.noteOff(note, 0);
+                this.shear.noteOff(note, 0);
             }
 
             this.ui.refresh();
@@ -385,18 +388,18 @@ define(['require','github:janesconference/tuna@master/tuna',
             }
             if (message.type === 'noteon') {
                 if (!when) {
-                    this.scissor.noteOn(message.pitch, 0, message.velocity);
+                    this.shear.noteOn(message.pitch, 0, message.velocity);
                 }
                 else {
-                    this.scissor.noteOn(message.pitch, when, message.velocity);
+                    this.shear.noteOn(message.pitch, when, message.velocity);
                 }
             }
             if (message.type === 'noteoff') {
                 if (!when) {
-                    this.scissor.noteOff(message.pitch);
+                    this.shear.noteOff(message.pitch);
                 }
                 else {
-                    this.scissor.noteOff(message.pitch, when);
+                    this.shear.noteOff(message.pitch, when);
                 }
             }
         };
