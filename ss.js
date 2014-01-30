@@ -249,7 +249,7 @@ define(['require','github:janesconference/tuna@master/tuna',
               break;
               case ("waves"):
                   roundV = Math.round(value);
-                  console.log ("Using " + roundV + " waves");
+                  //console.log ("Using " + roundV + " waves");
                   this.pluginState.waves = roundV;
                   this.shear.numSaws = roundV;
               break;
@@ -312,7 +312,7 @@ define(['require','github:janesconference/tuna@master/tuna',
 
         /* KEYS INIT */
         var keyCB = function (slot,value, element) {
-            console.log ("Callback called for", element);
+            //console.log ("Callback called for", element);
             var note = element;
             note += 60;
             if (value === 1) {
@@ -379,7 +379,7 @@ define(['require','github:janesconference/tuna@master/tuna',
             this.ui.addElement(new K2.Knob(knobArgs));
             var initValue = currKnob.init;
             var rangedInitValue = K2.MathUtils.linearRange (pluginConf.hostParameters.parameters[currKnob.id].range.min, pluginConf.hostParameters.parameters[currKnob.id].range.max, 0, 1, initValue);
-            console.log ("Setting", currKnob.id, "to value", rangedInitValue);
+            //console.log ("Setting", currKnob.id, "to value", rangedInitValue);
             this.ui.setValue ({elementID: knobArgs.ID, value: rangedInitValue, fireCallback:false});
         }
 
@@ -483,15 +483,15 @@ define(['require','github:janesconference/tuna@master/tuna',
         }
         resList = resList.concat(keyNotes_images);
 
-        console.log ("requiring...");
+        //console.log ("requiring...");
 
         require (resList,
             function () {
-                console.log ("required...");
+                //console.log ("required...");
                 pluginFunction.call (this, args, arguments);
             }.bind(this),
             function (err) {
-                console.log ("require error");
+                //console.log ("require error");
                 requireErr (err);
             }
         );
