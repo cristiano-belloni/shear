@@ -3,7 +3,6 @@ define(['require','github:janesconference/tuna@master/tuna',
   
     var pluginConf = {
         name: "Shear",
-        osc: false,
         audioOut: 1,
         audioIn: 0,
         version: '0.0.1',
