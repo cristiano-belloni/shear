@@ -149,10 +149,10 @@ define(['require','github:janesconference/tuna@master/tuna',
           for (i = _i = 0, _ref = this.numSaws; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
             saw = this.context.createOscillator();
             if (wavetype === 1) {
-                saw.type = saw.SQUARE;
+                saw.type = "square";
             }
               else {
-                saw.type = saw.SAWTOOTH;
+                saw.type = "sawtooth";
             }
 
             saw.frequency.value = this.frequency;
